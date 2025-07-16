@@ -33,6 +33,7 @@ async function run() {
     const db = client.db("PetConnect");
 
     const usersCollection = db.collection("users");
+    const petsCollection = db.collection("pets");
 
     app.post("/users", async (req, res) => {
       const userData = req.body;
@@ -56,6 +57,22 @@ async function run() {
         res.status(500).json({ message: "Database error", error: err.message });
       }
     });
+
+
+    app.post("/add-pet", async (req, res) => {
+      const petInfo = req.body;
+
+      try {
+        const result = await petsCollection.insertOne(petInfo);
+        res.status(201).json({
+          message: "Pet added successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+      }
+
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

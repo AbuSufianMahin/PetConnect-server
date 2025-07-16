@@ -74,6 +74,22 @@ async function run() {
 
     })
 
+    app.get('/my-added-pets', async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        if (!email) {
+          return res.status(400).json({ message: "Email query parameter is required" });
+        }
+
+        const userPets = await petsCollection.find({ ownerEmail: email }).toArray();
+        res.status(200).json(userPets);
+      } catch (error) {
+
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }

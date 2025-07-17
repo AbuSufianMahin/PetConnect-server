@@ -4,7 +4,7 @@ const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // Middleware
 app.use(cors());
@@ -42,8 +42,6 @@ async function run() {
         const existingUser = await usersCollection.findOne({ email: userData.email });
         if (existingUser) {
           return res.send({ message: "User with this email already exists" });
-          // 
-          // return;
         }
 
         // If not exists, insert the new user
@@ -94,10 +92,20 @@ async function run() {
       try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 6;
+        const category = req.query.category;
+        const name = req.query.seachByName;
         const skip = (page - 1) * limit;
 
         // Filter only pets not adopted
-        const query = { isAdopted: false };
+        let query = { isAdopted: false };
+
+        if (category && category !== "All") {
+          query.petCategory = category;
+        }
+        if (name) {
+          query.petName = { $regex: name, $options: "i" }
+        }
+
 
         const total = await petsCollection.countDocuments(query);
 
@@ -109,18 +117,30 @@ async function run() {
           .toArray();
 
         const hasMore = page * limit < total;
-
         res.json({ pets, hasMore });
-
       }
       catch (error) {
-        console.error(err);
         res.status(500).json({ message: "Server error" });
       }
+
+      app.get("/pet-details", async (req, res) => {
+        const petId = req.query.petId;
+
+        try {
+          const pet = await petsCollection.findOne({ _id: new ObjectId(petId) });
+
+          if (!pet) {
+            return res.status(404).json({ error: "Pet not found" });
+          }
+
+          res.status(200).json(pet);
+        } catch (error) {
+          console.error("Error fetching pet:", error);
+          res.status(500).json({ error: "Server error" });
+        }
+      })
+
     })
-
-
-
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }

@@ -90,6 +90,37 @@ async function run() {
       }
     });
 
+    app.get("/pets", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 6;
+        const skip = (page - 1) * limit;
+
+        // Filter only pets not adopted
+        const query = { isAdopted: false };
+
+        const total = await petsCollection.countDocuments(query);
+
+        const pets = await petsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        const hasMore = page * limit < total;
+
+        res.json({ pets, hasMore });
+
+      }
+      catch (error) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+      }
+    })
+
+
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }

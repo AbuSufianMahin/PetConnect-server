@@ -60,7 +60,7 @@ async function run() {
 
 
     app.post("/add-pet", async (req, res) => {
-      const { ownerEmail, ...petInfo } = req.body;
+      const petInfo = req.body;
 
       try {
         const result = await petsCollection.insertOne(petInfo);
@@ -68,18 +68,6 @@ async function run() {
           message: "Pet added successfully",
           insertedId: result.insertedId,
         });
-
-        // adding petId to usersCollection's added Pet ids
-        await usersCollection.updateOne(
-          { email: ownerEmail },
-          { $push: { addedPetIds: result.insertedId } }
-        );
-
-        res.status(201).json({
-          message: "Pet added successfully",
-          insertedId: result.insertedId,
-        });
-
 
       } catch (error) {
         res.status(500).json({ message: "Internal server error" });
@@ -156,6 +144,42 @@ async function run() {
       })
 
     })
+
+
+    // pet adoption request => update pet adoption_status + save requester Informations
+
+    app.patch('/pets/:petId/request-adoption', async (req, res) => {
+      const petId = req.params.petId;
+
+      try {
+        const { adoption_status, requesterName, requesterEmail, requesterContactNumber, requesterAddress } = req.body;
+
+        const requesterInfo = {
+          name: requesterName,
+          email: requesterEmail,
+          contactNumber: requesterContactNumber,
+          address: requesterAddress,
+        };
+
+        // Update the pet document
+        const queryWithPetId = { _id: new ObjectId(petId) }
+        const petUpdateResult = await petsCollection.updateOne(queryWithPetId,
+          {
+            $set: {
+              adoption_status,
+              requesterDetails: requesterInfo,
+            },
+          }
+        );
+
+        return res.status(200).json(petUpdateResult);
+
+      } catch (error) {
+        res.status(500).json({ message: "Server error." });
+
+      }
+    })
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

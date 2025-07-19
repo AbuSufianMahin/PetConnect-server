@@ -91,6 +91,27 @@ async function run() {
       }
     });
 
+
+    app.patch("/pet/:petId", async (req, res) => {
+      const petId = req.params.petId;
+
+      const newPetData = req.body;
+      const query = { _id: new ObjectId(petId) };
+
+      try {
+        const result = await petsCollection.updateOne(query, {
+          $set: newPetData
+        })
+
+        res.status(200).json({ message: 'Pet updated successfully', modifiedCount: result.modifiedCount });
+      }
+      catch (error) {
+        res.status(500).json({ message: 'Internal Server Problem', error: error.message });
+      }
+
+
+    })
+
     app.get("/pets", async (req, res) => {
       try {
         const page = parseInt(req.query.page) || 1;

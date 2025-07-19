@@ -40,14 +40,16 @@ async function run() {
 
       try {
         const existingUser = await usersCollection.findOne({ email: userData.email });
+
         if (existingUser) {
-          return res.send({ message: "User with this email already exists" });
+          return res.send({ isDuplicate: true, message: "User with this email already exists" });
         }
 
         // If not exists, insert the new user
         const result = await usersCollection.insertOne(userData);
 
         res.status(201).json({
+          isDuplicate: false,
           message: "User saved successfully",
           insertedId: result.insertedId,
         });
@@ -58,7 +60,7 @@ async function run() {
 
 
     app.post("/add-pet", async (req, res) => {
-      const petInfo = req.body;
+      const { ownerEmail, ...petInfo } = req.body;
 
       try {
         const result = await petsCollection.insertOne(petInfo);
@@ -66,6 +68,19 @@ async function run() {
           message: "Pet added successfully",
           insertedId: result.insertedId,
         });
+
+        // adding petId to usersCollection's added Pet ids
+        await usersCollection.updateOne(
+          { email: ownerEmail },
+          { $push: { addedPetIds: result.insertedId } }
+        );
+
+        res.status(201).json({
+          message: "Pet added successfully",
+          insertedId: result.insertedId,
+        });
+
+
       } catch (error) {
         res.status(500).json({ message: "Internal server error" });
       }
@@ -97,7 +112,7 @@ async function run() {
         const skip = (page - 1) * limit;
 
         // Filter only pets not adopted
-        let query = { isAdopted: false };
+        let query = { adoption_status: "not_adopted" };
 
         if (category && category !== "All") {
           query.petCategory = category;
@@ -141,6 +156,7 @@ async function run() {
       })
 
     })
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }

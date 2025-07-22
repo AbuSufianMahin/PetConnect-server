@@ -100,7 +100,7 @@ async function run() {
 
       try {
         const allRequestedOrAccepted = await petsCollection.find({
-          ownerEmail : email,
+          ownerEmail: email,
           adoption_status: { $in: ["requested", "adopted"] }
         }).toArray();
 
@@ -117,7 +117,7 @@ async function run() {
         // });
 
         res.status(200).json(allRequestedOrAccepted);
-        
+
       } catch (error) {
         res.status(500).json({
           success: false,
@@ -140,7 +140,7 @@ async function run() {
         const requestedPets = await petsCollection.find({
           "requesterDetails.email": email
         }).toArray();
-
+        console.log(requestedPets);
         res.status(200).json(requestedPets);
       } catch (error) {
         res.status(500).json({
@@ -151,6 +151,64 @@ async function run() {
       }
     })
 
+
+    app.patch('/pets/:id/reject-request', async (req, res) => {
+      const petId = req.params.id;
+
+      try {
+        const result = await petsCollection.updateOne(
+          { _id: new ObjectId(petId) },
+          {
+            $set: { adoption_status: "not_adopted" },
+            $unset: {
+              requesterDetails: "",
+              requested_at: ""
+            }
+          }
+        );
+
+        if (result.modifiedCount > 0) {
+          res.status(200).json({ success: true, message: "Adoption request rejected successfully." });
+        } else {
+          res.status(404).json({ success: false, message: "Pet not found or no request to reject." });
+        }
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+          error: error.message
+        });
+      }
+    });
+
+
+    app.patch('/pets/:id/accept-request', async (req, res) => {
+      const petId = req.params.id;
+
+      try {
+        const result = await petsCollection.updateOne(
+          { _id: new ObjectId(petId) },
+          {
+            $set: {
+              adoption_status: 'adopted',
+              adopted_at: new Date().toISOString(),
+            },
+          }
+        );
+
+
+        res.status(200).json({
+          success: true,
+          message: 'Adoption request accepted successfully.',
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Internal server error',
+          error: error.message,
+        });
+      }
+    });
 
     app.patch("/pet/:petId", async (req, res) => {
       const petId = req.params.petId;

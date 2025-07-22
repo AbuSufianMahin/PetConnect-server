@@ -91,6 +91,66 @@ async function run() {
       }
     });
 
+    app.get('/pet-requests/incoming', async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).json({ success: false, message: 'Email is required' });
+      }
+
+      try {
+        const allRequestedOrAccepted = await petsCollection.find({
+          ownerEmail : email,
+          adoption_status: { $in: ["requested", "adopted"] }
+        }).toArray();
+
+        // Separate them by status
+        // const requested = [];
+        // const accepted = [];
+
+        // allRequestedOrAccepted.forEach(pet => {
+        //   if (pet.adoption_status === "requested") {
+        //     requested.push(pet);
+        //   } else if (pet.adoption_status === "adopted") {
+        //     accepted.push(pet);
+        //   }
+        // });
+
+        res.status(200).json(allRequestedOrAccepted);
+        
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch pet adoption requests',
+          error: error.message
+        });
+      }
+
+    })
+
+
+    app.get('/pet-requests/outgoing', async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).json({ success: false, message: 'Email is required' });
+      }
+
+      try {
+        const requestedPets = await petsCollection.find({
+          "requesterDetails.email": email
+        }).toArray();
+
+        res.status(200).json(requestedPets);
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to fetch requested pets',
+          error: error.message
+        });
+      }
+    })
+
 
     app.patch("/pet/:petId", async (req, res) => {
       const petId = req.params.petId;
@@ -213,7 +273,7 @@ async function run() {
       }
       catch (error) {
 
-        res.status(500).json({ success: false, message: 'Internal server error'});
+        res.status(500).json({ success: false, message: 'Internal server error' });
       }
     });
 

@@ -188,6 +188,7 @@ async function run() {
           {
             $set: {
               adoption_status,
+              requested_at: new Date().toISOString(),
               requesterDetails: requesterInfo,
             },
           }
@@ -200,6 +201,21 @@ async function run() {
 
       }
     })
+
+
+    app.delete('/pets/:id', async (req, res) => {
+      const petId = req.params.id;
+
+      try {
+        const result = await petsCollection.deleteOne({ _id: new ObjectId(petId) });
+
+        res.status(200).json({ deletedCount: result.deletedCount, message: 'Pet deleted successfully' });
+      }
+      catch (error) {
+
+        res.status(500).json({ success: false, message: 'Internal server error'});
+      }
+    });
 
 
     await client.db("admin").command({ ping: 1 });

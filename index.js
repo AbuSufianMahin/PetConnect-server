@@ -140,7 +140,8 @@ async function run() {
         const requestedPets = await petsCollection.find({
           "requesterDetails.email": email
         }).toArray();
-        console.log(requestedPets);
+
+
         res.status(200).json(requestedPets);
       } catch (error) {
         res.status(500).json({
@@ -180,6 +181,37 @@ async function run() {
         });
       }
     });
+
+
+    app.patch('/adoptions/cancel/:petId', async (req, res) => {
+      const petId = req.params.petId;
+
+      try {
+        const query = { _id: new ObjectId(petId) };
+
+        const updateDoc = {
+          $set: { adoption_status: "not_adopted" },
+          $unset: {
+            requesterDetails: "",
+            requested_at: ""
+          }
+        }
+        const result = await petsCollection.updateOne(query, updateDoc);
+
+
+        if (result.modifiedCount > 0) {
+          res.status(200).json({ success: true, message: "Adoption request canceled successfully." });
+        } else {
+          res.status(404).json({ success: false, message: "Pet not found or no request to cancel" });
+        }
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+          error: error.message
+        });
+      }
+    })
 
 
     app.patch('/pets/:id/accept-request', async (req, res) => {

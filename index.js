@@ -58,6 +58,29 @@ async function run() {
       }
     });
 
+    app.get("/users/role", async (req, res) => {
+      try {
+        const userEmail = req.query.email;
+
+        if (!userEmail) {
+          return res.status(400).json({ error: "User email not found in token." });
+        }
+
+        const user = await usersCollection.findOne({ email: userEmail });
+        console.log(user);
+        if (!user) {
+          return res.status(404).json({ error: "User not found." });
+        }
+
+        return res.json({ role: user.role || "user" });
+
+
+      } catch (error) {
+        console.error("Failed to get user role:", error);
+        res.status(500).json({ error: "Internal server error." });
+      }
+    });
+
 
     app.post("/add-pet", async (req, res) => {
       const petInfo = req.body;

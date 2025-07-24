@@ -58,6 +58,26 @@ async function run() {
       }
     });
 
+    app.get('/search-users', async (req, res) => {
+      const searchValue = req.query.searchValue;
+
+      try {
+        let query = {};
+        if (searchValue) {
+          query = {
+            $or: [
+              { email: { $regex: searchValue, $options: 'i' } },
+              { name: { $regex: searchValue, $options: 'i' } },
+            ],
+          };
+        }
+        const users = await usersCollection.find(query).toArray();
+        res.send(users);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to fetch users', error });
+      }
+    });
+
     app.get("/users/role", async (req, res) => {
       try {
         const userEmail = req.query.email;
@@ -67,7 +87,6 @@ async function run() {
         }
 
         const user = await usersCollection.findOne({ email: userEmail });
-        console.log(user);
         if (!user) {
           return res.status(404).json({ error: "User not found." });
         }
@@ -78,6 +97,31 @@ async function run() {
       } catch (error) {
         console.error("Failed to get user role:", error);
         res.status(500).json({ error: "Internal server error." });
+      }
+    });
+
+    app.patch('/users/update-role', async (req, res) => {
+      const { email: userEmail, role } = req.query;
+      const { adminEmail } = req.body;
+
+      console.log(userEmail, role, adminEmail)
+
+      try {
+        const filter = { email: userEmail };
+        const updateDoc = {
+          $set: {
+            role,
+            role_updated_at: new Date().toISOString(),
+            role_updated_by: adminEmail
+          }
+        };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: 'Failed to promote user', error });
       }
     });
 

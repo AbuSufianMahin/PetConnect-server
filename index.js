@@ -73,6 +73,26 @@ async function run() {
       }
     });
 
+
+    app.get("/my-campaigns", async (req, res) => {
+      try {
+        const userEmail = req.query.email;
+
+        if (!userEmail) {
+          return res.status(400).json({ error: "Email query parameter is required." });
+        }
+
+        const campaigns = await campaignsCollection
+          .find({ organizerEmail: userEmail })
+          .sort({ createdAt: -1 }) // Optional: show latest first
+          .toArray();
+
+        res.status(200).json(campaigns);
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+      }
+    })
+
     app.get('/search-users', async (req, res) => {
       const searchValue = req.query.searchValue;
 

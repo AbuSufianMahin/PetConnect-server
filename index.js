@@ -15,6 +15,9 @@ app.get('/', (req, res) => {
   res.send('Hello World!')
 })
 
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+
 const uri = `mongodb+srv://${process.env.PETCONNET_USER}:${process.env.PETCONNET_PASSWORD}@cluster0.udgfocl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -35,6 +38,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const petsCollection = db.collection("pets");
     const campaignsCollection = db.collection("campaigns");
+    const donationsCollection = db.collection("donations");
 
     app.post("/users", async (req, res) => {
       const userData = req.body;
@@ -531,6 +535,78 @@ async function run() {
       catch (error) {
 
         res.status(500).json({ success: false, message: 'Internal server error' });
+      }
+    });
+
+
+
+
+    app.post('/create-payment-intent', async (req, res) => {
+      try {
+        const amountInCents = parseFloat(req.body.amount) * 100;
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amountInCents,
+          currency: 'usd',
+          automatic_payment_methods: { enabled: true },
+        });
+
+        res.json({ clientSecret: paymentIntent.client_secret });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post('/donations', async (req, res) => {
+      try {
+        const { userEmail, amount, campaignId, transactionId, donatedAt } = req.body;
+
+        // Prepare donation document
+        const donationDoc = {
+          userEmail,
+          amount: parseFloat(amount),
+          campaignId,
+          transactionId: transactionId || null,
+          donatedAt,
+        };
+
+        // Insert donation record
+        const insertResult = await donationsCollection.insertOne(donationDoc);
+
+        // Get current campaign info
+        const campaignObjectId = new ObjectId(campaignId);
+
+        const campaign = await campaignsCollection.findOne({ _id: campaignObjectId });
+
+        const newDonatedAmount = (campaign.donatedAmount) + donationDoc.amount;
+
+        // Build update operators separately
+        const updateQuery = {
+          $set: {
+            donatedAmount: newDonatedAmount,
+          },
+          $push: {
+            donators: {
+              userEmail,
+              amount: donationDoc.amount,
+              donatedAt,
+            },
+          },
+        };
+
+        if (newDonatedAmount >= campaign.maxDonationAmount) {
+          updateQuery.$set.status = "completed";
+        }
+
+        // Perform update
+        await campaignsCollection.updateOne({ _id: campaignObjectId }, updateQuery);
+
+        res.status(201).json({
+          message: "Donation recorded and campaign updated.",
+          donationId: insertResult.insertedId,
+        });
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
       }
     });
 

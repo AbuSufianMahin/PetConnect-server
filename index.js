@@ -34,6 +34,7 @@ async function run() {
 
     const usersCollection = db.collection("users");
     const petsCollection = db.collection("pets");
+    const campaignsCollection = db.collection("campaigns");
 
     app.post("/users", async (req, res) => {
       const userData = req.body;
@@ -55,6 +56,20 @@ async function run() {
         });
       } catch (err) {
         res.status(500).json({ message: "Database error", error: err.message });
+      }
+    });
+
+
+    app.post('/create-campaign', async (req, res) => {
+      try {
+        const campaignData = req.body;
+
+        const result = await campaignsCollection.insertOne(campaignData);
+
+        res.status(201).json({ insertedId: result.insertedId, message: 'Campaign created successfully' });
+
+      } catch (error) {
+        res.status(500).json({ message: 'Server error' });
       }
     });
 
@@ -104,8 +119,6 @@ async function run() {
       const { email: userEmail, role } = req.query;
       const { adminEmail } = req.body;
 
-      console.log(userEmail, role, adminEmail)
-
       try {
         const filter = { email: userEmail };
         const updateDoc = {
@@ -120,7 +133,6 @@ async function run() {
         res.send(result);
 
       } catch (error) {
-        console.log(error);
         res.status(500).send({ message: 'Failed to promote user', error });
       }
     });

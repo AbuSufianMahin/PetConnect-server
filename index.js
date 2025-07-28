@@ -93,6 +93,29 @@ async function run() {
       }
     })
 
+    // PATCH: Toggle Donation Campaign Status
+    app.patch("/donation-campaigns/:id/toggle-status", async (req, res) => {
+      try {
+        const campaignId = req.params.id;
+        const { status } = req.body;
+
+        const result = await campaignsCollection.updateOne(
+          { _id: new ObjectId(campaignId) },
+          { $set: { status: status } }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({success: false, message: "Campaign not found" });
+        }
+
+        res.json({ success: true, message: `Campaign ${status === 'paused' ? 'paused' : 'resumed'} successfully` });
+      } catch (error) {
+        console.error("Error toggling campaign status:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
+
     app.get('/search-users', async (req, res) => {
       const searchValue = req.query.searchValue;
 

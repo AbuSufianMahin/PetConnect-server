@@ -93,14 +93,34 @@ async function run() {
         const hasMore = page * limit < totalCount;
         res.json({ campaigns, hasMore });
 
-        console.log({ campaigns, hasMore })
 
 
       } catch (error) {
-        console.error('Failed to fetch campaigns:', error);
         res.status(500).json({ error: 'Something went wrong while fetching donation campaigns.' });
       }
     })
+
+
+    app.get("/campaign-details/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        // Ensure valid ObjectId
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ message: "Invalid campaign ID" });
+        }
+
+        const campaign = await campaignsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!campaign) {
+          return res.status(404).json({ message: "Campaign not found" });
+        }
+
+        res.json(campaign);
+      } catch (err) {
+        res.status(500).json({ message: "Server error" });
+      }
+    });
 
 
     app.get("/my-campaigns", async (req, res) => {
@@ -138,7 +158,6 @@ async function run() {
 
         res.json({ success: true, message: `Campaign ${status === 'paused' ? 'paused' : 'resumed'} successfully` });
       } catch (error) {
-        console.error("Error toggling campaign status:", error);
         res.status(500).json({ message: "Internal server error" });
       }
     });
@@ -181,7 +200,6 @@ async function run() {
 
 
       } catch (error) {
-        console.error("Failed to get user role:", error);
         res.status(500).json({ error: "Internal server error." });
       }
     });
@@ -459,7 +477,6 @@ async function run() {
 
           res.status(200).json(pet);
         } catch (error) {
-          console.error("Error fetching pet:", error);
           res.status(500).json({ error: "Server error" });
         }
       })

@@ -73,6 +73,35 @@ async function run() {
       }
     });
 
+    app.get('/donation-campaigns', async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 6;
+        const skip = (page - 1) * limit;
+
+        const filter = { status: 'active' }
+        const totalCount = await campaignsCollection.countDocuments(filter);
+
+
+        // Fetch campaigns with pagination, sorted by date (desc)
+        const campaigns = await campaignsCollection.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        const hasMore = page * limit < totalCount;
+        res.json({ campaigns, hasMore });
+
+        console.log({ campaigns, hasMore })
+
+
+      } catch (error) {
+        console.error('Failed to fetch campaigns:', error);
+        res.status(500).json({ error: 'Something went wrong while fetching donation campaigns.' });
+      }
+    })
+
 
     app.get("/my-campaigns", async (req, res) => {
       try {
@@ -93,7 +122,6 @@ async function run() {
       }
     })
 
-    // PATCH: Toggle Donation Campaign Status
     app.patch("/donation-campaigns/:id/toggle-status", async (req, res) => {
       try {
         const campaignId = req.params.id;
@@ -105,7 +133,7 @@ async function run() {
         );
 
         if (result.matchedCount === 0) {
-          return res.status(404).json({success: false, message: "Campaign not found" });
+          return res.status(404).json({ success: false, message: "Campaign not found" });
         }
 
         res.json({ success: true, message: `Campaign ${status === 'paused' ? 'paused' : 'resumed'} successfully` });

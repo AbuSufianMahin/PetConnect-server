@@ -169,7 +169,7 @@ async function run() {
     });
 
 
-    app.post('/create-campaign', async (req, res) => {
+    app.post('/create-campaign', verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const campaignData = req.body;
 
@@ -210,7 +210,7 @@ async function run() {
     })
 
 
-    app.get("/campaign-details/:id", async (req, res) => {
+    app.get("/campaign-details/:id", verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const { id } = req.params;
 
@@ -253,7 +253,7 @@ async function run() {
     });
 
 
-    app.get("/my-campaigns", async (req, res) => {
+    app.get("/my-campaigns", verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const userEmail = req.query.email;
 
@@ -292,7 +292,7 @@ async function run() {
       }
     });
 
-    app.get('/donations/user', async (req, res) => {
+    app.get('/donations/user', verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const userEmail = req.query.email;
         if (!userEmail) {
@@ -340,7 +340,7 @@ async function run() {
     });
 
 
-    app.post('/refund-donation', async (req, res) => {
+    app.post('/refund-donation', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const { campaignId, transactionId } = req.body;
 
       if (!campaignId || !transactionId) {
@@ -411,7 +411,7 @@ async function run() {
       }
     });
 
-    app.get("/users/role", async (req, res) => {
+    app.get("/users/role", verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const userEmail = req.query.email;
 
@@ -432,10 +432,10 @@ async function run() {
       }
     });
 
-    app.patch('/users/update-role', async (req, res) => {
-      const { email: userEmail, role } = req.query;
+    app.patch('/users/update-role', verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      const { userEmail, role } = req.query;
       const { adminEmail } = req.body;
-
+      console.log()
       try {
         const filter = { email: userEmail };
         const updateDoc = {
@@ -455,7 +455,7 @@ async function run() {
     });
 
 
-    app.post("/add-pet", async (req, res) => {
+    app.post("/add-pet", verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petInfo = req.body;
 
       try {
@@ -471,7 +471,7 @@ async function run() {
 
     })
 
-    app.get('/my-added-pets', async (req, res) => {
+    app.get('/my-added-pets', verifyFBToken, verifyTokenEmail, async (req, res) => {
       try {
         const email = req.query.email;
 
@@ -487,7 +487,7 @@ async function run() {
       }
     });
 
-    app.get('/pet-requests/incoming', async (req, res) => {
+    app.get('/pet-requests/incoming', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const email = req.query.email;
 
       if (!email) {
@@ -549,7 +549,7 @@ async function run() {
     })
 
 
-    app.patch('/pets/:id/reject-request', async (req, res) => {
+    app.patch('/pets/:id/reject-request', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.id;
 
       try {
@@ -579,7 +579,7 @@ async function run() {
     });
 
 
-    app.patch('/adoptions/cancel/:petId', async (req, res) => {
+    app.patch('/adoptions/cancel/:petId', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.petId;
 
       try {
@@ -610,7 +610,7 @@ async function run() {
     })
 
 
-    app.patch('/pets/:id/accept-request', async (req, res) => {
+    app.patch('/pets/:id/accept-request', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.id;
 
       try {
@@ -794,7 +794,7 @@ async function run() {
 
     // pet adoption request => update pet adoption_status + save requester Informations
 
-    app.patch('/pets/:petId/request-adoption', async (req, res) => {
+    app.patch('/pets/:petId/request-adoption', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.petId;
 
       try {
@@ -827,7 +827,7 @@ async function run() {
       }
     })
 
-    app.delete('/pets/:id', async (req, res) => {
+    app.delete('/pets/:id', verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.id;
 
       try {
@@ -912,8 +912,67 @@ async function run() {
     });
 
 
-    // await client.db("admin").command({ ping: 1 });
-    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    app.get("/admin/all-donation-campaigns", async (req, res) => {
+      try {
+        const search = req.query.search || "";
+
+        const query = search
+          ? { petName: { $regex: search, $options: "i" } }
+          : {};
+
+        const allCampaigns = await campaignsCollection.find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.status(200).json(allCampaigns);
+      } catch (error) {
+        console.error("Error fetching campaigns:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    app.delete("/admin/donation-campaigns/:id", verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const result = await campaignsCollection.deleteOne({ _id: new ObjectId(id) });
+
+        if (result.deletedCount === 1) {
+          return res.status(200).json({ message: "Campaign deleted successfully" });
+        }
+        res.status(404).json({ message: "Campaign not found" });
+      } catch (error) {
+        console.error("Delete error:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    app.patch('/admin/donation-campaigns/:id/pause-toggle', verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      const campaignId = req.params.id;
+
+      try {
+        const campaign = await campaignsCollection.findOne({ _id: new ObjectId(campaignId) });
+        if (!campaign) {
+          return res.status(404).json({ message: "Campaign not found" });
+        }
+
+        const newStatus = campaign.status === "paused" ? "active" : "paused";
+
+        const result = await campaignsCollection.updateOne(
+          { _id: new ObjectId(campaignId) },
+          { $set: { status: newStatus } }
+        );
+
+        res.json({ message: `Campaign ${newStatus}`, modifiedCount: result.modifiedCount });
+      } catch (err) {
+        console.error("Pause API error:", err);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+
+
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }
   finally { }
 }

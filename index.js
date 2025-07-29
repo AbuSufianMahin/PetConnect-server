@@ -8,8 +8,18 @@ const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // Middleware
-app.use(cors());
 app.use(express.json());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://petconnect-adoption-platform.web.app", // Add your deployed frontend here
+      "https://petconnect-server-ckqm3fsqp-abusufianmahins-projects.vercel.app",
+      "https://petconnect-server.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 
 
 
@@ -40,8 +50,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-
-    await client.connect();
 
     const db = client.db("PetConnect");
 
@@ -143,8 +151,6 @@ async function run() {
       }
     });
 
-
-
     app.post("/users", async (req, res) => {
       const userData = req.body;
 
@@ -166,6 +172,43 @@ async function run() {
       } catch (err) {
         res.status(500).json({ message: "Database error", error: err.message });
       }
+    });
+
+
+    app.get("/campaign-donors/:campaignId", async (req, res) => {
+      const { campaignId } = req.params;
+
+      const donors = await donationsCollection.aggregate([
+        { $match: { campaignId } },
+        {
+          $group: {
+            _id: "$userEmail",
+            totalAmount: { $sum: "$amount" },
+          },
+        },
+        {
+          $lookup: {
+            from: "users", // <-- Update this if your actual users collection is named "users"
+            localField: "_id",
+            foreignField: "email",
+            as: "userInfo",
+          },
+        },
+        { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            email: "$_id",
+            totalAmount: 1,
+            name: "$userInfo.name",
+            usersPhotoURL: { $ifNull: ["$userInfo.photoURL", ""] }, // safe fallback
+          },
+        },
+        { $sort: { totalAmount: -1 } },
+      ]).toArray();
+
+
+
+      res.json(donors);
     });
 
 
@@ -969,10 +1012,6 @@ async function run() {
       }
     });
 
-
-
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }
   finally { }
 }

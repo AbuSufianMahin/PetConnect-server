@@ -11,6 +11,15 @@ app.use(cors());
 app.use(express.json());
 
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./firebase_service_key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+
 app.get('/', (req, res) => {
   res.send('Hello World!')
 })
@@ -39,6 +48,58 @@ async function run() {
     const petsCollection = db.collection("pets");
     const campaignsCollection = db.collection("campaigns");
     const donationsCollection = db.collection("donations");
+
+
+    const verifyFBToken = async (req, res, next) => {
+
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).send({ message: "Unauthorized Access" })
+      }
+
+      const token = authHeader.split(" ")[1];
+
+      if (!token) {
+        return res.status(401).send({ message: "Unauthorized Access" })
+      }
+
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.decodedToken = decodedToken;
+        next();
+      }
+      catch {
+        return res.status(403).send({ message: "Forbidden Access" })
+      }
+    }
+
+    const verifyTokenEmail = (req, res, next) => {
+      const userEmail = req.query.email;
+      const tokenEmail = req.decodedToken?.email;
+
+      if (!userEmail || !tokenEmail || userEmail !== tokenEmail) {
+        return res.status(403).send({ errorCode: 403, message: "Forbidden Access" });
+      }
+
+      next();
+    };
+
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decodedToken?.email;
+      if (!email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      const user = await usersCollection.findOne({ email });
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      next();
+    };
+
 
     app.post("/users", async (req, res) => {
       const userData = req.body;
@@ -246,7 +307,7 @@ async function run() {
         // Find the donation record first
         const donation = await donationsCollection.findOne({ transactionId });
 
-        
+
         if (!donation) {
           return res.status(404).json({ success: false, message: "Donation not found" });
         }
@@ -287,10 +348,9 @@ async function run() {
     });
 
 
-
-    app.get('/search-users', async (req, res) => {
+    app.get('/search-users', verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
       const searchValue = req.query.searchValue;
-
+      console.log(req.query.email);
       try {
         let query = {};
         if (searchValue) {
@@ -555,7 +615,7 @@ async function run() {
 
     })
 
-    app.get("/pets", async (req, res) => {
+    app.get("/active-donation-pets", async (req, res) => {
       try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 6;
@@ -608,6 +668,45 @@ async function run() {
 
     })
 
+    app.get("/all-pets", verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      try {
+        const name = req.query.searchByName;
+
+        let query = {};
+
+        if (name) {
+          query.petName = { $regex: name, $options: "i" };
+        }
+
+        const allPets = await petsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+
+        res.json(allPets);
+
+      } catch (error) {
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+
+    app.get("/pet-details", async (req, res) => {
+      const petId = req.query.petId;
+
+      try {
+        const pet = await petsCollection.findOne({ _id: new ObjectId(petId) });
+
+        if (!pet) {
+          return res.status(404).json({ error: "Pet not found" });
+        }
+
+        res.status(200).json(pet);
+      } catch (error) {
+        res.status(500).json({ error: "Server error" });
+      }
+    });
 
     // pet adoption request => update pet adoption_status + save requester Informations
 
@@ -644,7 +743,6 @@ async function run() {
       }
     })
 
-
     app.delete('/pets/:id', async (req, res) => {
       const petId = req.params.id;
 
@@ -658,9 +756,6 @@ async function run() {
         res.status(500).json({ success: false, message: 'Internal server error' });
       }
     });
-
-
-
 
     app.post('/create-payment-intent', async (req, res) => {
       try {

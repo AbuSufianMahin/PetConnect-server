@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const admin = require("firebase-admin");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,9 +12,9 @@ app.use(cors());
 app.use(express.json());
 
 
-const admin = require("firebase-admin");
 
-const serviceAccount = require("./firebase_service_key.json");
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decodedKey);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -595,7 +596,7 @@ async function run() {
       }
     });
 
-    app.patch("/pet/:petId", async (req, res) => {
+    app.patch("/pet/:petId", verifyFBToken, verifyTokenEmail, async (req, res) => {
       const petId = req.params.petId;
 
       const newPetData = req.body;
@@ -691,6 +692,47 @@ async function run() {
       }
     });
 
+
+    app.patch("/admin/pets/:id/status", verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      const petId = req.params.id;
+      const { adoption_status } = req.body;
+
+      // Validate new status
+      const validStatuses = ["adopted", "not_adopted", "requested"];
+      if (!validStatuses.includes(adoption_status)) {
+        return res.status(400).json({ message: "Invalid adoption status" });
+      }
+
+      try {
+        const result = await petsCollection.updateOne(
+          { _id: new ObjectId(petId) },
+          { $set: { adoption_status } }
+        );
+
+        if (result.modifiedCount === 1) {
+          res.status(200).json({ message: "Status updated successfully" });
+        } else {
+          res.status(404).json({ message: "Pet not found" });
+        }
+      } catch (error) {
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+
+    app.delete("/admin/pets/:id", verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
+      const petId = req.params.id;
+      try {
+        const result = await petsCollection.deleteOne({ _id: new ObjectId(petId) });
+        if (result.deletedCount === 1) {
+          res.status(200).json({ message: "Pet deleted successfully by admin" });
+        } else {
+          res.status(404).json({ message: "Pet not found" });
+        }
+      } catch (error) {
+        res.status(500).json({ message: "Server error" });
+      }
+    });
 
     app.get("/pet-details", async (req, res) => {
       const petId = req.query.petId;
@@ -828,8 +870,8 @@ async function run() {
     });
 
 
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }
   finally { }
 }

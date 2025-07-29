@@ -126,6 +126,27 @@ async function run() {
       }
     });
 
+    app.get('/recommended-campaigns', async (req, res) => {
+      try {
+        const recommendedCampaigns = await campaignsCollection.aggregate([
+          { $match: { status: "active" } },
+          {
+            $addFields: {
+              amountNeeded: {
+                $subtract: ["$maxDonationAmount", "$donatedAmount"]
+              }
+            }
+          },
+          { $sort: { amountNeeded: -1 } },  // Highest amount needed first
+          { $limit: 3 }
+        ]).toArray();
+
+        res.json(recommendedCampaigns);
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+      }
+    });
+
 
     app.get("/my-campaigns", async (req, res) => {
       try {

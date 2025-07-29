@@ -101,6 +101,49 @@ async function run() {
       next();
     };
 
+    app.get("/top-contributors", async (req, res) => {
+      try {
+        const topContributors = await donationsCollection.aggregate([
+          {
+            $group: {
+              _id: "$userEmail",
+              totalAmount: { $sum: "$amount" }
+            }
+          },
+          { $sort: { totalAmount: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: "users",               // <-- exact collection name here
+              localField: "_id",           // grouped userEmail
+              foreignField: "email",       // email field in users collection
+              as: "userInfo"
+            }
+          },
+          {
+            $unwind: {
+              path: "$userInfo",
+              preserveNullAndEmptyArrays: true
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              userEmail: "$_id",
+              totalAmount: 1,
+              photoURL: "$userInfo.photoURL",
+              name: "$userInfo.name"
+            }
+          }
+        ]).toArray();
+        res.status(200).json(topContributors);
+      } catch (error) {
+        console.error("Error fetching top contributors:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+
 
     app.post("/users", async (req, res) => {
       const userData = req.body;
@@ -351,7 +394,6 @@ async function run() {
 
     app.get('/search-users', verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
       const searchValue = req.query.searchValue;
-      console.log(req.query.email);
       try {
         let query = {};
         if (searchValue) {

@@ -187,6 +187,106 @@ async function run() {
       }
     });
 
+    app.get('/donations/user', async (req, res) => {
+      try {
+        const userEmail = req.query.email;
+        if (!userEmail) {
+          return res.status(400).json({ error: "Missing email query parameter" });
+        }
+
+        const donations = await db.collection('donations')
+          .find({ userEmail })
+          .sort({ donatedAt: -1 })
+          .toArray();
+
+        const campaignIds = donations.map(d => d.campaignId);
+        const campaigns = await db.collection('campaigns')
+          .find({ _id: { $in: campaignIds.map(id => new ObjectId(id)) } })
+          .toArray();
+
+        const campaignMap = {};
+        campaigns.forEach(c => {
+          campaignMap[c._id.toString()] = c;
+        });
+
+        // Merge donation and campaign flat, including userId
+        const donationHistory = donations.map(donation => {
+          const campaign = campaignMap[donation.campaignId] || {};
+          const { _id, petName, photoURL } = campaign;
+
+          return {
+            donationId: donation._id,
+            donatorEmail: donation.userEmail,
+            donatedAmount: donation.amount,
+            transactionId: donation.transactionId,
+            donatedAt: donation.donatedAt,
+            campaignId: donation.campaignId,
+            petName: petName,
+            photoURL: photoURL,
+          };
+        });
+
+        res.json(donationHistory);
+
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+
+    app.post('/refund-donation', async (req, res) => {
+      const { campaignId, transactionId } = req.body;
+
+      if (!campaignId || !transactionId) {
+        return res.status(400).json({ success: false, message: "Missing campaignId or transactionId" });
+      }
+
+      try {
+        // Find the donation record first
+        const donation = await donationsCollection.findOne({ transactionId });
+
+        
+        if (!donation) {
+          return res.status(404).json({ success: false, message: "Donation not found" });
+        }
+
+        const updateResult = await campaignsCollection.updateOne(
+          { _id: new ObjectId(campaignId) },
+          { $pull: { donators: { transactionId } }, $inc: { donatedAmount: -donation.amount } }
+        );
+
+
+        const updatedCampaign = await campaignsCollection.findOne({ _id: new ObjectId(campaignId) });
+
+        if (updatedCampaign.donatedAmount !== updatedCampaign.maxDonationAmount && updatedCampaign.status === "completed") {
+          await campaignsCollection.updateOne(
+            { _id: new ObjectId(campaignId) },
+            { $set: { status: "active" } }
+          );
+          updatedCampaign.status = "active"; // reflect change locally too
+        }
+
+        if (updateResult.matchedCount === 0) {
+          return res.status(404).json({ success: false, message: "Campaign not found" });
+        }
+        if (updateResult.modifiedCount === 0) {
+          return res.status(400).json({ success: false, message: "Donator not found in campaign" });
+        }
+
+
+
+        // Delete the donation record
+        await donationsCollection.deleteOne({ transactionId });
+
+        res.json({ success: true, message: "Refund processed successfully", campaign: updateResult.value });
+      } catch (error) {
+        console.error("Refund error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+      }
+    });
+
+
 
     app.get('/search-users', async (req, res) => {
       const searchValue = req.query.searchValue;
@@ -611,6 +711,7 @@ async function run() {
               userEmail,
               amount: donationDoc.amount,
               donatedAt,
+              transactionId,
             },
           },
         };

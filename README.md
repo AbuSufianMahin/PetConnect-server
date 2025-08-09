@@ -6,9 +6,8 @@ Built with **Express.js** and **MongoDB**, it handles data management, authentic
 ---
 
 ## 🔗 Related Repository
-
-- **Frontend (Client) Repository:** [https://github.com/AbuSufianMahin/PetConnect-client](https://github.com/AbuSufianMahin/PetConnect-client)
-
+- <a href="https://github.com/AbuSufianMahin/PetConnect-client" target="_blank" rel="noopener noreferrer">Frontend (Client) Repository Link</a>
+- <a href="https://petconnect-adoption-platform.web.app" target="_blank" rel="noopener noreferrer">Live website Link</a>
 ---
 
 ## 🚀 Features

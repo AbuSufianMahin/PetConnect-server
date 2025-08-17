@@ -13,14 +13,13 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://petconnect-adoption-platform.web.app", // Add your deployed frontend here
+      "https://petconnect-adoption-platform.web.app",
       "https://petconnect-server-ckqm3fsqp-abusufianmahins-projects.vercel.app",
       "https://petconnect-server.vercel.app",
     ],
     credentials: true,
   })
 );
-
 
 
 const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
@@ -253,11 +252,10 @@ async function run() {
     })
 
 
-    app.get("/campaign-details/:id", verifyFBToken, verifyTokenEmail, async (req, res) => {
+    app.get("/campaign-details/:id", async (req, res) => {
+      
       try {
         const { id } = req.params;
-
-        // Ensure valid ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).json({ message: "Invalid campaign ID" });
         }
@@ -478,7 +476,6 @@ async function run() {
     app.patch('/users/update-role', verifyFBToken, verifyTokenEmail, verifyAdmin, async (req, res) => {
       const { userEmail, role } = req.query;
       const { adminEmail } = req.body;
-      console.log()
       try {
         const filter = { email: userEmail };
         const updateDoc = {
@@ -542,18 +539,6 @@ async function run() {
           ownerEmail: email,
           adoption_status: { $in: ["requested", "adopted"] }
         }).toArray();
-
-        // Separate them by status
-        // const requested = [];
-        // const accepted = [];
-
-        // allRequestedOrAccepted.forEach(pet => {
-        //   if (pet.adoption_status === "requested") {
-        //     requested.push(pet);
-        //   } else if (pet.adoption_status === "adopted") {
-        //     accepted.push(pet);
-        //   }
-        // });
 
         res.status(200).json(allRequestedOrAccepted);
 
